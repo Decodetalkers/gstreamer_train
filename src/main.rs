@@ -7,7 +7,7 @@ use gstreamer::{prelude::{GstBinExtManual, ElementExtManual}, traits::ElementExt
 //use gstreamer::{traits::ElementExt, MessageType, prelude::GstBinExtManual};
 use std::os::unix::io::AsRawFd;
 
-fn screen_grstreamer<F: AsRawFd>(fd: F, node_id: Option<u32>) -> anyhow::Result<()> {
+fn screen_gstreamer<F: AsRawFd>(fd: F, node_id: Option<u32>) -> anyhow::Result<()> {
     gstreamer::init()?;
     let raw_fd = fd.as_raw_fd();
     let element = gstreamer::Pipeline::new(None);
@@ -57,7 +57,7 @@ async fn main() -> anyhow::Result<()> {
         println!("node id: {}", stream.pipe_wire_node_id());
         println!("size: {:?}", stream.size());
         println!("position: {:?}", stream.position());
-        screen_grstreamer(fd, Some(stream.pipe_wire_node_id())).unwrap();
+        screen_gstreamer(fd, Some(stream.pipe_wire_node_id())).unwrap();
     });
     Ok(())
 }
