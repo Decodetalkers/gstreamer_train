@@ -3,7 +3,11 @@ use ashpd::{
     WindowIdentifier,
 };
 //use gstreamer::{prelude::ObjectExt, traits::ElementExt, MessageType};
-use gstreamer::{prelude::{GstBinExtManual, ElementExtManual}, traits::ElementExt, MessageType};
+use gstreamer::{
+    prelude::{ElementExtManual, GstBinExtManual},
+    traits::ElementExt,
+    MessageType,
+};
 //use gstreamer::{traits::ElementExt, MessageType, prelude::GstBinExtManual};
 use std::os::unix::io::AsRawFd;
 
@@ -18,7 +22,7 @@ fn screen_gstreamer<F: AsRawFd>(fd: F, node_id: Option<u32>) -> anyhow::Result<(
             .property("fd", &raw_fd)
             .property("path", &node.to_string())
             .build()?;
-        element.add_many(&[&pipewire_element, &videoconvert, &ximagesink])?; 
+        element.add_many(&[&pipewire_element, &videoconvert, &ximagesink])?;
         pipewire_element.link(&videoconvert)?;
         videoconvert.link(&ximagesink)?;
         element.set_state(gstreamer::State::Playing)?;
