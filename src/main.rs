@@ -26,11 +26,29 @@ fn screen_gstreamer<F: AsRawFd>(fd: F, node_id: Option<u32>) -> anyhow::Result<(
         pipewire_element.link(&videoconvert)?;
         videoconvert.link(&ximagesink)?;
         element.set_state(gstreamer::State::Playing)?;
-        let bus = element.bus();
-        let message = bus
-            .unwrap()
-            .timed_pop_filtered(None, &[MessageType::Error, MessageType::Eos]);
-        dbg!(message);
+        let bus = element.bus().unwrap();
+        loop {
+            let message = bus.timed_pop_filtered(
+                Some(gstreamer::ClockTime::from_useconds(1)),
+                &[MessageType::Error, MessageType::Eos],
+            );
+            if let Some(message) = message {
+                println!("Here is message");
+                match message.type_() {
+                    MessageType::Eos => {
+                        println!("End");
+                        break;
+                    }
+                    MessageType::Error => {
+                        println!("{:?}", message);
+                        println!("Error");
+                        break;
+                    }
+                    _ => continue,
+                }
+            }
+        }
+
         element.set_state(gstreamer::State::Null)?;
     }
 
