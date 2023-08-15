@@ -1,13 +1,11 @@
-use ashpd::{
-    desktop::screencast::{CursorMode, PersistMode, Screencast, SourceType},
-    WindowIdentifier,
-};
 //use gstreamer::{prelude::ObjectExt, traits::ElementExt, MessageType};
 use gstreamer::{
     prelude::{ElementExtManual, GstBinExtManual},
     traits::ElementExt,
     MessageType,
 };
+use pipewirethread::start_cast;
+mod pipewirethread;
 //use gstreamer::{traits::ElementExt, MessageType, prelude::GstBinExtManual};
 use std::os::unix::io::AsRawFd;
 
@@ -25,7 +23,9 @@ fn screen_gstreamer<F: AsRawFd>(fd: F, node_id: Option<u32>) -> anyhow::Result<(
         element.add_many(&[&pipewire_element, &videoconvert, &ximagesink])?;
         pipewire_element.link(&videoconvert)?;
         videoconvert.link(&ximagesink)?;
+        println!("sdfd");
         element.set_state(gstreamer::State::Playing)?;
+        println!("sdfd2");
         let bus = element.bus().unwrap();
         loop {
             let message = bus.timed_pop_filtered(
@@ -57,29 +57,20 @@ fn screen_gstreamer<F: AsRawFd>(fd: F, node_id: Option<u32>) -> anyhow::Result<(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let proxy = Screencast::new().await?;
-    let session = proxy.create_session().await?;
-    proxy
-        .select_sources(
-            &session,
-            CursorMode::Hidden,
-            SourceType::Monitor | SourceType::Window,
-            true,
-            None,
-            PersistMode::DoNot,
-        )
-        .await?;
+    let connection = libwayshot::WayshotConnection::new().unwrap();
+    let outputs = connection.get_all_outputs();
+    let output = outputs[0].clone();
+    let cast = start_cast(
+        false,
+        output.dimensions.width as u32,
+        output.dimensions.height as u32,
+        None,
+        output.wl_output,
+    )
+    .await?;
 
-    let response = proxy
-        .start(&session, &WindowIdentifier::default())
-        .await?
-        .response()?;
-    let fd = proxy.open_pipe_wire_remote(&session).await?;
-    response.streams().iter().for_each(|stream| {
-        println!("node id: {}", stream.pipe_wire_node_id());
-        println!("size: {:?}", stream.size());
-        println!("position: {:?}", stream.position());
-        screen_gstreamer(fd, Some(stream.pipe_wire_node_id())).unwrap();
-    });
+    let fd = rustix::fs::memfd_create("helloworld", rustix::fs::MemfdFlags::CLOEXEC).unwrap();
+
+    screen_gstreamer(fd, Some(cast)).unwrap();
     Ok(())
 }

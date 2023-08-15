@@ -7,10 +7,17 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.27.0", features = ["full"] }
-ashpd = { version = "0.4.0", default-features = false, features = [
-	"tokio",
-	"pipewire",
-	"wayland",
-] }
+#ashpd = { version = "0.6.0", default-features = false, features = [
+#	"tokio",
+#	"pipewire",
+#	"wayland",
+#] }
 anyhow = "1.0.70"
 gstreamer = "0.20.3"
+pipewire = { git = "https://gitlab.freedesktop.org/pipewire/pipewire-rs" }
+libwayshot = { git = "https://github.com/Decodetalkers/wayshot.git", branch = "addcapturefd" }
+libspa_sys = { package = "libspa-sys", git = "https://gitlab.freedesktop.org/pipewire/pipewire-rs" }
+rustix = { version = "0.38.8", features = ["fs"] }
+wayland-client = "0.30.2"
+memfd = "0.6.3"
+nix = "0.26.2"
