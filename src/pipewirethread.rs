@@ -8,8 +8,10 @@ use pipewire::{
     stream::StreamState,
 };
 use std::{
+    cell::RefCell,
     io,
     os::fd::{BorrowedFd, IntoRawFd},
+    rc::Rc,
     slice,
 };
 use tokio::sync::oneshot;
@@ -67,23 +69,32 @@ fn start_stream(
     let stream = pipewire::stream::Stream::new(
         &core,
         name,
+        //pipewire::properties! {
+        //    *pipewire::keys::MEDIA_TYPE => "Audio",
+        //    *pipewire::keys::MEDIA_CATEGORY => "Capture",
+        //    *pipewire::keys::MEDIA_ROLE => "Camera",
+        //},
         pipewire::properties! {
             "media.class" => "Video/Source",
             "node.name" => "wayshot-screenshot", // XXX
         },
     )?;
+
+    let stream_cell: Rc<RefCell<Option<pipewire::stream::Stream>>> = Rc::new(RefCell::new(None));
+    let stream_cell_clone = stream_cell.clone();
     let _listener = stream
-        .add_local_listener::<()>()
+        .add_local_listener_with_user_data(())
         .state_changed(move |old, new| {
             println!("state-changed '{:?}' -> '{:?}'", old, new);
             match new {
+                StreamState::Streaming => {
+                    println!("Streaming");
+                }
                 StreamState::Paused => {
-                    //let stream = stream_cell_clone.borrow_mut();
-                    //let stream = stream.as_ref().unwrap();
-                    //if let Some(node_id_tx) = node_id_tx.take() {
-                    //    println!("{}", stream.node_id());
-                    //    node_id_tx.send(Ok(stream.node_id())).unwrap();
-                    //}
+                    println!("sss");
+                    let stream = stream_cell_clone.borrow_mut();
+                    let stream = stream.as_ref().unwrap();
+                    println!("{}", stream.node_id());
                 }
                 StreamState::Error(_) => {
                     println!("Errror");
@@ -167,8 +178,11 @@ fn start_stream(
     //let flags = pipewire::stream::StreamFlags::MAP_BUFFERS;
     let flags = pipewire::stream::StreamFlags::ALLOC_BUFFERS;
     stream.connect(spa::Direction::Output, None, flags, params)?;
+
     let node_id = stream.node_id();
 
+    *stream_cell.borrow_mut() = Some(stream);
+    loop_.run();
     Ok((loop_, node_id))
 }
 
