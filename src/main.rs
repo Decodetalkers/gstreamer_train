@@ -4,7 +4,7 @@ use gstreamer::{
     traits::ElementExt,
     MessageType,
 };
-use pipewirethread::start_cast;
+use pipewirethread::ScreencastThread;
 mod pipewirethread;
 //use gstreamer::{traits::ElementExt, MessageType, prelude::GstBinExtManual};
 
@@ -51,19 +51,22 @@ fn screen_gstreamer(node: u32) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let connection = libwayshot::WayshotConnection::new().unwrap();
     let outputs = connection.get_all_outputs();
     let output = outputs[0].clone();
-    let cast = start_cast(
+    let cast = ScreencastThread::start_cast(
         false,
         output.dimensions.width as u32,
         output.dimensions.height as u32,
         None,
         output.wl_output,
-    )
-    .await?;
-    screen_gstreamer(cast).unwrap();
+    )?;
+    let node_id = cast.node_id();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(4));
+        cast.stop();
+    });
+    screen_gstreamer(node_id).unwrap();
     Ok(())
 }
