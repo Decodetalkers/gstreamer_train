@@ -8,15 +8,12 @@ use pipewire::{
     stream::StreamState,
 };
 use std::{
-    cell::RefCell,
     io,
     os::fd::{BorrowedFd, IntoRawFd},
-    rc::Rc,
     slice,
 };
 use tokio::sync::oneshot;
 use wayland_client::protocol::wl_output;
-
 pub async fn start_cast(
     overlay_cursor: bool,
     width: u32,
@@ -25,40 +22,21 @@ pub async fn start_cast(
     output: wl_output::WlOutput,
 ) -> anyhow::Result<u32> {
     let (tx, rx) = oneshot::channel();
-    let (_, thread_stop_rx) = pipewire::channel::channel::<()>();
+    //let (_, _thread_stop_rx) = pipewire::channel::channel::<()>();
     std::thread::spawn(move || {
-        match start_stream(overlay_cursor, width, height, capture_region, output) {
-            Ok((loop_, node_id_rx)) => {
-                tx.send(Ok(node_id_rx)).unwrap();
-                let weak_loop = loop_.downgrade();
-                let _receiver = thread_stop_rx.attach(&loop_, move |()| {
-                    weak_loop.upgrade().unwrap().quit();
-                });
-                loop_.run();
-            }
-            Err(err) => tx.send(Err(err)).unwrap(),
-        }
+        let _ = start_stream(tx, overlay_cursor, width, height, capture_region, output);
     });
-    match rx.await {
-        Ok(v) => {
-            if let Ok(receiver) = v {
-                println!("{receiver}");
-                return Ok(receiver);
-            }
-        }
-        Err(e) => println!("{e}"),
-    }
-
-    Err(anyhow::anyhow!("NotReady"))
+    Ok(rx.await?)
 }
 
 fn start_stream(
+    sender: oneshot::Sender<u32>,
     _overlay_cursor: bool,
     width: u32,
     height: u32,
     capture_region: Option<CaptureRegion>,
     output: wl_output::WlOutput,
-) -> Result<(pipewire::MainLoop, u32), pipewire::Error> {
+) -> Result<(), pipewire::Error> {
     let connection = libwayshot::WayshotConnection::new().unwrap();
     let loop_ = pipewire::MainLoop::new()?;
     let context = pipewire::Context::new(&loop_).unwrap();
@@ -70,9 +48,9 @@ fn start_stream(
         &core,
         name,
         //pipewire::properties! {
-        //    *pipewire::keys::MEDIA_TYPE => "Audio",
+        //    *pipewire::keys::MEDIA_TYPE => "Video",
         //    *pipewire::keys::MEDIA_CATEGORY => "Capture",
-        //    *pipewire::keys::MEDIA_ROLE => "Camera",
+        //    *pipewire::keys::MEDIA_ROLE => "Screen",
         //},
         pipewire::properties! {
             "media.class" => "Video/Source",
@@ -80,8 +58,11 @@ fn start_stream(
         },
     )?;
 
-    let stream_cell: Rc<RefCell<Option<pipewire::stream::Stream>>> = Rc::new(RefCell::new(None));
-    let stream_cell_clone = stream_cell.clone();
+    //let stream_cell: Rc<RefCell<Option<pipewire::stream::Stream>>> = Rc::new(RefCell::new(None));
+    //let stream_cell_clone = stream_cell.clone();
+
+    //let (node_id_tx, node_id_rx) = oneshot::channel();
+    //let mut node_id_tx = Some(node_id_tx);
     let _listener = stream
         .add_local_listener_with_user_data(())
         .state_changed(move |old, new| {
@@ -91,10 +72,13 @@ fn start_stream(
                     println!("Streaming");
                 }
                 StreamState::Paused => {
-                    println!("sss");
-                    let stream = stream_cell_clone.borrow_mut();
-                    let stream = stream.as_ref().unwrap();
-                    println!("{}", stream.node_id());
+                    println!("ssseeee");
+                    //let stream = stream_cell_clone.borrow_mut();
+                    //let stream = stream.as_ref().unwrap();
+                    //if let Some(node_id_tx) = node_id_tx.take() {
+                    //    node_id_tx.send(Ok(stream.node_id())).unwrap();
+                    //}
+                    //println!("{}", stream.node_id());
                 }
                 StreamState::Error(_) => {
                     println!("Errror");
@@ -108,7 +92,7 @@ fn start_stream(
             }
         })
         .param_changed(|_, id, (), pod| {
-            println!("sss");
+            println!("ssssssssssssssssssssssssssssssss");
             if id != libspa_sys::SPA_PARAM_Format {
                 return;
             }
@@ -117,7 +101,7 @@ fn start_stream(
             }
         })
         .add_buffer(move |buffer| {
-            println!("sss");
+            println!("ssseeeeeeee");
             let buf = unsafe { &mut *(*buffer).buffer };
             let datas = unsafe { slice::from_raw_parts_mut(buf.datas, buf.n_datas as usize) };
             for data in datas {
@@ -150,7 +134,7 @@ fn start_stream(
         })
         .process(move |stream, ()| {
             if let Some(mut buffer) = stream.dequeue_buffer() {
-                println!("sss");
+                println!("sssbb");
                 let datas = buffer.datas_mut();
                 //let data = datas[0].get_mut();
                 //if data.len() == width as usize * height as usize * 4 {
@@ -176,14 +160,14 @@ fn start_stream(
         pod::Pod::from_bytes(&buffers).unwrap(),
     ];
     //let flags = pipewire::stream::StreamFlags::MAP_BUFFERS;
-    let flags = pipewire::stream::StreamFlags::ALLOC_BUFFERS;
+    let flags =
+        pipewire::stream::StreamFlags::ALLOC_BUFFERS | pipewire::stream::StreamFlags::DRIVER;
     stream.connect(spa::Direction::Output, None, flags, params)?;
 
-    let node_id = stream.node_id();
-
-    *stream_cell.borrow_mut() = Some(stream);
+    sender.send(stream.node_id()).unwrap();
     loop_.run();
-    Ok((loop_, node_id))
+    Ok(())
+    //Ok((loop_, node_id))
 }
 
 fn value_to_bytes(value: pod::Value) -> Vec<u8> {
