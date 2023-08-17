@@ -3,7 +3,6 @@ use pipewire::{
     spa::{
         self,
         pod::{self, serialize::PodSerializer},
-        utils::Id,
     },
     stream::StreamState,
 };
@@ -154,7 +153,7 @@ fn start_stream(
                 connection
                     .capture_output_frame_shm_fd(
                         0,
-                        output.clone(),
+                        &output,
                         libwayshot::reexport::Transform::Normal,
                         fd,
                         capture_region,
@@ -181,7 +180,7 @@ fn start_stream(
 
     sender.send(stream.node_id()).unwrap();
     let weak_loop = loop_.downgrade();
-    let _receiver = stop_rx.attach(&loop_, move |()| {
+    let _receiver = stop_rx.attach(&loop_, move |_| {
         weak_loop.upgrade().unwrap().quit();
     });
     loop_.run();
@@ -251,38 +250,55 @@ fn buffers(width: u32, height: u32) -> Vec<u8> {
     }))
 }
 
+#[allow(unused)]
+fn buffers2(width: u32, height: u32) -> Vec<u8> {
+    value_to_bytes(pod::Value::Object(spa::pod::object!(
+        spa::utils::SpaTypes::ObjectParamBuffers,
+        spa::param::ParamType::Buffers,
+    )))
+}
+
 fn format(width: u32, height: u32) -> Vec<u8> {
-    value_to_bytes(pod::Value::Object(pod::Object {
-        type_: libspa_sys::SPA_TYPE_OBJECT_Format,
-        id: libspa_sys::SPA_PARAM_EnumFormat,
-        properties: vec![
-            pod::Property {
-                key: libspa_sys::SPA_FORMAT_mediaType,
-                flags: pod::PropertyFlags::empty(),
-                value: pod::Value::Id(Id(libspa_sys::SPA_MEDIA_TYPE_video)),
-            },
-            pod::Property {
-                key: libspa_sys::SPA_FORMAT_mediaSubtype,
-                flags: pod::PropertyFlags::empty(),
-                value: pod::Value::Id(Id(libspa_sys::SPA_MEDIA_SUBTYPE_raw)),
-            },
-            pod::Property {
-                key: libspa_sys::SPA_FORMAT_VIDEO_format,
-                flags: pod::PropertyFlags::empty(),
-                value: pod::Value::Id(Id(libspa_sys::SPA_VIDEO_FORMAT_RGBA)),
-            },
-            // XXX modifiers
-            pod::Property {
-                key: libspa_sys::SPA_FORMAT_VIDEO_size,
-                flags: pod::PropertyFlags::empty(),
-                value: pod::Value::Rectangle(spa::utils::Rectangle { width, height }),
-            },
-            pod::Property {
-                key: libspa_sys::SPA_FORMAT_VIDEO_framerate,
-                flags: pod::PropertyFlags::empty(),
-                value: pod::Value::Fraction(spa::utils::Fraction { num: 60, denom: 1 }),
-            },
-            // TODO max framerate
-        ],
-    }))
+    value_to_bytes(pod::Value::Object(spa::pod::object!(
+        spa::utils::SpaTypes::ObjectParamFormat,
+        spa::param::ParamType::EnumFormat,
+        spa::pod::property!(
+            spa::format::FormatProperties::MediaType,
+            Id,
+            spa::format::MediaType::Video
+        ),
+        spa::pod::property!(
+            spa::format::FormatProperties::MediaSubtype,
+            Id,
+            spa::format::MediaSubtype::Raw
+        ),
+        spa::pod::property!(
+            spa::format::FormatProperties::VideoFormat,
+            Choice,
+            Enum,
+            Id,
+            spa::param::video::VideoFormat::RGBA,
+            spa::param::video::VideoFormat::RGBA,
+        ),
+        // XXX modifiers
+        spa::pod::property!(
+            spa::format::FormatProperties::VideoSize,
+            Choice,
+            Range,
+            Rectangle,
+            spa::utils::Rectangle { width, height },
+            spa::utils::Rectangle { width, height },
+            spa::utils::Rectangle { width, height }
+        ),
+        spa::pod::property!(
+            spa::format::FormatProperties::VideoFramerate,
+            Choice,
+            Range,
+            Fraction,
+            spa::utils::Fraction { num: 60, denom: 1 },
+            spa::utils::Fraction { num: 60, denom: 1 },
+            spa::utils::Fraction { num: 60, denom: 1 }
+        ),
+        // TODO max framerate
+    )))
 }
