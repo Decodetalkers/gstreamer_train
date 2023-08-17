@@ -8,12 +8,15 @@ use pipewire::{
 };
 use std::sync::mpsc;
 use std::{
+    cell::RefCell,
     io,
     os::fd::{BorrowedFd, IntoRawFd},
+    rc::Rc,
     slice,
 };
 use wayland_client::protocol::wl_output;
 
+#[allow(unused)]
 pub struct ScreencastThread {
     node_id: u32,
     thread_stop_tx: pipewire::channel::Sender<()>,
@@ -52,6 +55,7 @@ impl ScreencastThread {
         self.node_id
     }
 
+    #[allow(unused)]
     pub fn stop(&self) {
         let _ = self.thread_stop_tx.send(());
     }
@@ -59,14 +63,17 @@ impl ScreencastThread {
 fn start_stream(
     stop_rx: pipewire::channel::Receiver<()>,
     sender: mpsc::Sender<u32>,
-    _overlay_cursor: bool,
+    overlay_cursor: bool,
     width: u32,
     height: u32,
     capture_region: Option<CaptureRegion>,
     output: wl_output::WlOutput,
 ) -> Result<(), pipewire::Error> {
-    pipewire::init();
     let connection = libwayshot::WayshotConnection::new().unwrap();
+
+    // FIXME:
+    connection.get_all_outputs();
+
     let loop_ = pipewire::MainLoop::new()?;
     let context = pipewire::Context::new(&loop_).unwrap();
     let core = context.connect(None).unwrap();
@@ -82,11 +89,10 @@ fn start_stream(
         },
     )?;
 
-    //let stream_cell: Rc<RefCell<Option<pipewire::stream::Stream>>> = Rc::new(RefCell::new(None));
-    //let stream_cell_clone = stream_cell.clone();
+    let mut hassend = false;
+    let stream_cell: Rc<RefCell<Option<pipewire::stream::Stream>>> = Rc::new(RefCell::new(None));
+    let stream_cell_clone = stream_cell.clone();
 
-    //let (node_id_tx, node_id_rx) = oneshot::channel();
-    //let mut node_id_tx = Some(node_id_tx);
     let _listener = stream
         .add_local_listener_with_user_data(())
         .state_changed(move |old, new| {
@@ -96,6 +102,14 @@ fn start_stream(
                     println!("Streaming");
                 }
                 StreamState::Paused => {
+                    let stream = stream_cell_clone.borrow_mut();
+                    let stream = stream.as_ref().unwrap();
+                    if !hassend {
+                        println!("Send");
+                        let _ = sender.send(stream.node_id());
+                        hassend = true;
+                    }
+
                     println!("Paused");
                 }
                 StreamState::Error(_) => {
@@ -118,9 +132,11 @@ fn start_stream(
             for data in datas {
                 use std::ffi::CStr;
                 let name = unsafe { CStr::from_bytes_with_nul_unchecked(b"pipewire-screencopy\0") };
+                println!("eeeeeeeeeeeee");
                 let fd = rustix::fs::memfd_create(name, rustix::fs::MemfdFlags::CLOEXEC).unwrap();
                 rustix::fs::ftruncate(&fd, (width * height * 4) as _).unwrap();
 
+                println!("fffffffffffff");
                 data.type_ = libspa_sys::SPA_DATA_MemFd;
                 data.flags = 0;
                 data.fd = fd.into_raw_fd().into();
@@ -147,19 +163,20 @@ fn start_stream(
             if let Some(mut buffer) = stream.dequeue_buffer() {
                 let datas = buffer.datas_mut();
                 //let data = datas[0].get_mut();
-                //if data.len() == width as usize * height as usize * 4 {
+                println!("aaa");
+                println!("{}", datas[0].as_raw().fd);
                 let fd = unsafe { BorrowedFd::borrow_raw(datas[0].as_raw().fd as _) };
+                println!("bbbb");
                 // TODO error
                 connection
                     .capture_output_frame_shm_fd(
-                        0,
+                        overlay_cursor as i32,
                         &output,
                         libwayshot::reexport::Transform::Normal,
                         fd,
                         capture_region,
                     )
                     .unwrap();
-                println!("beta");
             }
         })
         .register()?;
@@ -172,13 +189,10 @@ fn start_stream(
         pod::Pod::from_bytes(&buffers).unwrap(),
     ];
     //let flags = pipewire::stream::StreamFlags::MAP_BUFFERS;
-    let flags = pipewire::stream::StreamFlags::ALLOC_BUFFERS
-        | pipewire::stream::StreamFlags::AUTOCONNECT
-        | pipewire::stream::StreamFlags::MAP_BUFFERS
-        | pipewire::stream::StreamFlags::RT_PROCESS;
+    let flags = pipewire::stream::StreamFlags::ALLOC_BUFFERS;
     stream.connect(spa::Direction::Output, None, flags, params)?;
 
-    sender.send(stream.node_id()).unwrap();
+    *stream_cell.borrow_mut() = Some(stream);
     let weak_loop = loop_.downgrade();
     let _receiver = stop_rx.attach(&loop_, move |_| {
         weak_loop.upgrade().unwrap().quit();

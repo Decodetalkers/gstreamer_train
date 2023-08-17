@@ -57,16 +57,13 @@ fn main() -> anyhow::Result<()> {
     let output = outputs[0].clone();
     let cast = ScreencastThread::start_cast(
         false,
-        output.dimensions.width as u32,
-        output.dimensions.height as u32,
+        output.mode.width as u32,
+        output.mode.height as u32,
         None,
         output.wl_output,
     )?;
     let node_id = cast.node_id();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_secs(4));
-        cast.stop();
-    });
+
     screen_gstreamer(node_id).unwrap();
     Ok(())
 }

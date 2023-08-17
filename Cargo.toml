@@ -21,3 +21,4 @@ rustix = { version = "0.38.8", features = ["fs"] }
 wayland-client = "0.30.2"
 memfd = "0.6.3"
 nix = "0.26.2"
+env_logger = "0.10.0"
