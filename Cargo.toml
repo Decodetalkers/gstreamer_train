@@ -17,7 +17,7 @@ gstreamer = "0.20.3"
 pipewire = { git = "https://gitlab.freedesktop.org/pipewire/pipewire-rs" }
 libwayshot = { git = "https://github.com/Decodetalkers/wayshot.git", branch = "addcapturefd" }
 libspa_sys = { package = "libspa-sys", git = "https://gitlab.freedesktop.org/pipewire/pipewire-rs" }
-rustix = { version = "0.38.8", features = ["fs"] }
+rustix = { version = "0.38.8", features = ["fs","use-libc"] }
 wayland-client = "0.30.2"
 memfd = "0.6.3"
 nix = "0.26.2"

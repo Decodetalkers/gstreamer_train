@@ -7,13 +7,7 @@ use pipewire::{
     stream::StreamState,
 };
 use std::sync::mpsc;
-use std::{
-    cell::RefCell,
-    io,
-    os::fd::{BorrowedFd, IntoRawFd},
-    rc::Rc,
-    slice,
-};
+use std::{cell::RefCell, io, os::fd::IntoRawFd, rc::Rc, slice};
 use wayland_client::protocol::wl_output;
 
 #[allow(unused)]
@@ -132,11 +126,9 @@ fn start_stream(
             for data in datas {
                 use std::ffi::CStr;
                 let name = unsafe { CStr::from_bytes_with_nul_unchecked(b"pipewire-screencopy\0") };
-                println!("eeeeeeeeeeeee");
                 let fd = rustix::fs::memfd_create(name, rustix::fs::MemfdFlags::CLOEXEC).unwrap();
                 rustix::fs::ftruncate(&fd, (width * height * 4) as _).unwrap();
 
-                println!("fffffffffffff");
                 data.type_ = libspa_sys::SPA_DATA_MemFd;
                 data.flags = 0;
                 data.fd = fd.into_raw_fd().into();
@@ -155,33 +147,27 @@ fn start_stream(
             let datas = unsafe { slice::from_raw_parts_mut(buf.datas, buf.n_datas as usize) };
 
             for data in datas {
-                let _ = unsafe { rustix::io::close(data.fd as _) };
+                unsafe { rustix::io::close(data.fd as _) };
                 data.fd = -1;
             }
         })
         .process(move |stream, ()| {
             if let Some(mut buffer) = stream.dequeue_buffer() {
                 let datas = buffer.datas_mut();
-                //let data = datas[0].get_mut();
-                println!("aaa");
-                println!("{}", datas[0].as_raw().fd);
-                let fd = unsafe { BorrowedFd::borrow_raw(datas[0].as_raw().fd as _) };
-                println!("bbbb");
+                let fd = datas[0].as_raw().fd as i32;
                 // TODO error
-                connection
-                    .capture_output_frame_shm_fd(
-                        overlay_cursor as i32,
-                        &output,
-                        libwayshot::reexport::Transform::Normal,
-                        fd,
-                        capture_region,
-                    )
-                    .unwrap();
+                connection.capture_output_frame_shm_fd(
+                    overlay_cursor as i32,
+                    &output,
+                    libwayshot::reexport::Transform::Normal,
+                    fd,
+                    capture_region,
+                ).unwrap();
             }
         })
         .register()?;
     let format = format(width, height);
-    let buffers = buffers(width as u32, height as u32);
+    let buffers = buffers(width, height);
 
     let params = &mut [
         //pod::Pod::from_bytes(&values).unwrap(),
