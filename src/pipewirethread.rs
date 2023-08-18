@@ -65,9 +65,6 @@ fn start_stream(
 ) -> Result<(), pipewire::Error> {
     let connection = libwayshot::WayshotConnection::new().unwrap();
 
-    // FIXME:
-    connection.get_all_outputs();
-
     let loop_ = pipewire::MainLoop::new()?;
     let context = pipewire::Context::new(&loop_).unwrap();
     let core = context.connect(None).unwrap();
@@ -159,8 +156,8 @@ fn start_stream(
                 connection.capture_output_frame_shm_fd(
                     overlay_cursor as i32,
                     &output,
-                    libwayshot::reexport::Transform::Normal,
                     fd,
+                    None,
                     capture_region,
                 ).unwrap();
             }
