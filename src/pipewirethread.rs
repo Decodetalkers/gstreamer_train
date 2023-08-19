@@ -157,7 +157,6 @@ fn start_stream(
                     overlay_cursor as i32,
                     &output,
                     fd,
-                    None,
                     capture_region,
                 ).unwrap();
             }

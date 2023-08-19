@@ -544,7 +544,7 @@ dependencies = [
 [[package]]
 name = "libwayshot"
 version = "0.2.0"
-source = "git+https://github.com/Decodetalkers/wayshot.git?branch=addcapturefd#196aa5b30069fbc10ff1ccceccc5f4a4211e482d"
+source = "git+https://github.com/Decodetalkers/wayshot.git?branch=addcapturefd#c9351a63d0ccd1f745c9204a0a47c4db459693a8"
 dependencies = [
  "image",
  "log",
