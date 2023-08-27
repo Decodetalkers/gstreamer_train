@@ -2,13 +2,13 @@ use ashpd::{
     desktop::screencast::{CursorMode, PersistMode, Screencast, SourceType},
     WindowIdentifier,
 };
-//use gstreamer::{prelude::ObjectExt, traits::ElementExt, MessageType};
+
 use gstreamer::{
     prelude::{ElementExtManual, GstBinExtManual},
     traits::ElementExt,
     MessageType,
 };
-//use gstreamer::{traits::ElementExt, MessageType, prelude::GstBinExtManual};
+
 use std::os::unix::io::AsRawFd;
 
 fn screen_gstreamer<F: AsRawFd>(fd: F, node_id: Option<u32>) -> anyhow::Result<()> {
@@ -75,11 +75,11 @@ async fn main() -> anyhow::Result<()> {
         .await?
         .response()?;
     let fd = proxy.open_pipe_wire_remote(&session).await?;
-    response.streams().iter().for_each(|stream| {
+    for stream in response.streams() {
         println!("node id: {}", stream.pipe_wire_node_id());
         println!("size: {:?}", stream.size());
         println!("position: {:?}", stream.position());
-        screen_gstreamer(fd, Some(stream.pipe_wire_node_id())).unwrap();
-    });
+        screen_gstreamer(fd, Some(stream.pipe_wire_node_id()))?;
+    }
     Ok(())
 }
