@@ -90,6 +90,7 @@ async fn main() -> ashpd::Result<()> {
     println!("{:#?}", response.streams());
 
     let fd = screencast.open_pipe_wire_remote(&session).await?;
+    #[allow(unreachable_code)]
     tokio::spawn(async move {
         loop {
             // 13 for Enter key code
