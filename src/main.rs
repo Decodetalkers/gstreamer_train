@@ -1,14 +1,18 @@
 use ashpd::{
-    desktop::screencast::{CursorMode, PersistMode, Screencast, SourceType},
+    desktop::{
+        remote_desktop::{DeviceType, KeyState, RemoteDesktop},
+        screencast::{CursorMode, PersistMode, Screencast, SourceType},
+    },
     WindowIdentifier,
 };
 
+//use gstreamer::{prelude::ObjectExt, traits::ElementExt, MessageType};
 use gstreamer::{
     prelude::{ElementExtManual, GstBinExtManual},
     traits::ElementExt,
     MessageType,
 };
-
+//use gstreamer::{traits::ElementExt, MessageType, prelude::GstBinExtManual};
 use std::os::unix::io::AsRawFd;
 
 fn screen_gstreamer<F: AsRawFd>(fd: F, node_id: Option<u32>) -> anyhow::Result<()> {
@@ -56,10 +60,17 @@ fn screen_gstreamer<F: AsRawFd>(fd: F, node_id: Option<u32>) -> anyhow::Result<(
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let proxy = Screencast::new().await?;
-    let session = proxy.create_session().await?;
-    proxy
+async fn main() -> ashpd::Result<()> {
+    let remote_desktop = RemoteDesktop::new().await?;
+    let screencast = Screencast::new().await?;
+    let identifier = WindowIdentifier::default();
+    let session = remote_desktop.create_session().await?;
+
+    remote_desktop
+        .select_devices(&session, DeviceType::Keyboard | DeviceType::Pointer)
+        .await?;
+
+    screencast
         .select_sources(
             &session,
             CursorMode::Hidden,
@@ -70,16 +81,33 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-    let response = proxy
-        .start(&session, &WindowIdentifier::default())
+    let response = remote_desktop
+        .start(&session, &identifier)
         .await?
         .response()?;
-    let fd = proxy.open_pipe_wire_remote(&session).await?;
-    for stream in response.streams() {
-        println!("node id: {}", stream.pipe_wire_node_id());
-        println!("size: {:?}", stream.size());
-        println!("position: {:?}", stream.position());
-        screen_gstreamer(fd, Some(stream.pipe_wire_node_id()))?;
-    }
+
+    println!("{:#?}", response.devices());
+    println!("{:#?}", response.streams());
+
+    let fd = screencast.open_pipe_wire_remote(&session).await?;
+    tokio::spawn(async move {
+        loop {
+            // 13 for Enter key code
+            remote_desktop
+                .notify_keyboard_keycode(&session, 13, KeyState::Pressed)
+                .await?;
+            tokio::time::sleep(std::time::Duration::from_nanos(100)).await;
+        }
+        Ok::<(), ashpd::Error>(())
+    });
+
+    response.streams().iter().for_each(|stream| {
+        for stream in stream.iter() {
+            println!("node id: {}", stream.pipe_wire_node_id());
+            println!("size: {:?}", stream.size());
+            println!("position: {:?}", stream.position());
+            screen_gstreamer(fd, Some(stream.pipe_wire_node_id())).unwrap();
+        }
+    });
     Ok(())
 }
