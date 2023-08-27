@@ -8,7 +8,7 @@ use pipewire::{
 };
 use std::sync::mpsc;
 use std::{cell::RefCell, io, os::fd::IntoRawFd, rc::Rc, slice};
-use wayland_client::protocol::wl_output;
+use libwayshot::reexport::WlOutput;
 
 #[allow(unused)]
 pub struct ScreencastThread {
@@ -22,7 +22,7 @@ impl ScreencastThread {
         width: u32,
         height: u32,
         capture_region: Option<CaptureRegion>,
-        output: wl_output::WlOutput,
+        output: WlOutput,
     ) -> anyhow::Result<Self> {
         let (tx, rx) = mpsc::channel();
         let (thread_stop_tx, thread_stop_rx) = pipewire::channel::channel::<()>();
@@ -61,7 +61,7 @@ fn start_stream(
     width: u32,
     height: u32,
     capture_region: Option<CaptureRegion>,
-    output: wl_output::WlOutput,
+    output: WlOutput,
 ) -> Result<(), pipewire::Error> {
     let connection = libwayshot::WayshotConnection::new().unwrap();
 

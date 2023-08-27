@@ -56,7 +56,7 @@ fn main() -> anyhow::Result<()> {
     let outputs = connection.get_all_outputs();
     let output = outputs[0].clone();
     let cast = ScreencastThread::start_cast(
-        false,
+        true,
         output.mode.width as u32,
         output.mode.height as u32,
         None,
