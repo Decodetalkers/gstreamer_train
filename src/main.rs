@@ -14,7 +14,7 @@ use std::os::unix::io::AsRawFd;
 fn screen_gstreamer<F: AsRawFd>(fd: F, node_id: Option<u32>) -> anyhow::Result<()> {
     gstreamer::init()?;
     let raw_fd = fd.as_raw_fd();
-    let element = gstreamer::Pipeline::new(None);
+    let element = gstreamer::Pipeline::new();
     let videoconvert = gstreamer::ElementFactory::make("videoconvert").build()?;
     let ximagesink = gstreamer::ElementFactory::make("ximagesink").build()?;
     if let Some(node) = node_id {
